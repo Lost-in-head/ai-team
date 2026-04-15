@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ai-team-core": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/ai-team/mcp-server/src/index.js"],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-YOUR_KEY_HERE"
+      }
+    }
+  }
+}

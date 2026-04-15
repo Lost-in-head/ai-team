@@ -1,0 +1,17 @@
+{
+  "name": "ai-team-core",
+  "version": "1.0.0",
+  "description": "AI Team Framework — 20 specialist MCP skills",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
