@@ -9,10 +9,11 @@
 #   ./scripts/new-deployment.sh "My Business Name" --reset-memory
 # ─────────────────────────────────────────────────────────────
 
-set -e
+set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MEMORY_DIR="$REPO_DIR/memory"
+AGENTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$AGENTS_DIR/.." && pwd)"
+MEMORY_DIR="$AGENTS_DIR"
 TEMPLATE="$MEMORY_DIR/OWNER_CONTEXT.template.md"
 CONTEXT="$MEMORY_DIR/OWNER_CONTEXT.md"
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M")

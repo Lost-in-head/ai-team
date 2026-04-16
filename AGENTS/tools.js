@@ -34,7 +34,7 @@ export const tools = [
   },
   {
     name: 'skill_autonomous_build',
-    description: 'PRD to deployed product — autonomous full SDLC, task decomposition, zero human intervention mode.',
+    description: 'Generate a detailed, step-by-step build plan from a PRD — architecture decisions, task breakdown, implementation order, and deployment checklist. Produces a plan, not executed code.',
     inputSchema: { type: 'object', properties: { task: { type: 'string' }, context: { type: 'string' } }, required: ['task'] }
   },
   {
@@ -101,6 +101,18 @@ export const tools = [
     name: 'skill_workflow_automation',
     description: 'Build automations — n8n, Make, Zapier, webhooks, cron jobs, document generation, bash scripting.',
     inputSchema: { type: 'object', properties: { task: { type: 'string' }, context: { type: 'string' } }, required: ['task'] }
+  },
+  {
+    name: 'write_memory',
+    description: 'Persist agent session state to a memory file (e.g. nexus.memory.md). Call this at the end of every session to maintain continuity. Agent name must be one of: nexus, atlas, forge, ledger, oracle, engine, pulse, shield, closer.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent: { type: 'string', description: 'Agent name (e.g. nexus, atlas, forge)' },
+        content: { type: 'string', description: 'Full markdown content to write to the memory file' }
+      },
+      required: ['agent', 'content']
+    }
   }
 ];
 
@@ -112,7 +124,7 @@ export const ROLES = {
   skill_autonomous_loop:    'Agent loop specialist. ReAct, Plan-Execute, goal decomposition, failure recovery.',
   skill_copywriting:        'Elite direct-response copywriter. Landing pages, email sequences, cold outreach, listings.',
   skill_launch_strategy:    'GTM strategist. Product launches, channel selection, beta rollouts, day-1 revenue.',
-  skill_autonomous_build:   'Autonomous full-stack engineer. PRD to production, zero human intervention.',
+  skill_autonomous_build:   'Senior build planner. Translates PRDs into detailed, sequenced engineering plans.',
   skill_mcp_builder:        'MCP server specialist. Tool schema, stdio/SSE transport, Claude Desktop integration.',
   skill_memory_architect:   'Agent memory expert. Episodic/semantic/procedural memory, vector stores, state.',
   skill_parallel_agents:    'Parallel orchestration expert. Fan-out, aggregation, conflict resolution, token budgets.',
@@ -144,8 +156,10 @@ export const LOOP_TOOLS = new Set([
   'skill_autonomous_loop'
 ]);
 
-// Keywords that trigger PRISM regardless of tool
+// Keywords that trigger PRISM regardless of tool.
+// Kept specific to avoid routing simple requests through expensive multi-lens calls.
 export const PRISM_KEYWORDS = [
-  'strategy', 'decide', 'should i', 'best way', 'how to build',
-  'design', 'plan', 'architect', 'which approach', 'compare'
+  'should i', 'which approach', 'which is better', 'how should i',
+  'what architecture', 'should we build', 'decide between',
+  'best strategy', 'evaluate options', 'trade-offs', 'tradeoffs'
 ];
