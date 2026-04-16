@@ -3,7 +3,7 @@
 
 ## Identity
 - **Role:** Master Orchestrator / Router
-- **Model:** claude-opus-4-6
+- **Model:** claude-sonnet-4-20250514
 - **Activation:** `/nexus` or any multi-step task
 - **Memory:** `memory/nexus.memory.md`
 

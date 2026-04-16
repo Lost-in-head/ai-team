@@ -9,10 +9,13 @@
  * Synthesizes into a single recommendation with confidence score.
  * If confidence < threshold, loops up to MAX_LOOPS times.
  * Uses Promise.allSettled so a single failing lens doesn't abort the run.
+ *
+ * Model routing (via models.js):
+ *   Lenses      → mid-tier (Sonnet)
+ *   Synthesis   → mid-tier, or premium (Opus) for high-stakes tools
  */
 
-// Claude Opus 4 API identifier (keep in sync with handler.js)
-const MODEL = 'claude-opus-4-20250514';
+import { selectModel } from './models.js';
 
 const CONFIDENCE_THRESHOLD = 0.72;
 const MAX_LOOPS = 3;
@@ -82,7 +85,7 @@ async function callLens(lens, task, context, role, ownerContext, apiKey) {
   const res = await fetchWithRetry(
     'https://api.anthropic.com/v1/messages',
     apiOptions(apiKey, {
-      model: MODEL,
+      model: selectModel('prism', 'lens'),
       max_tokens: 1500,
       system: `${lens.instruction}
 
@@ -115,7 +118,7 @@ function extractConfidence(text) {
 }
 
 // synthesize uses a single options object to avoid argument-order mistakes
-async function synthesize({ task, context, lensOutputs, ownerContext, role, apiKey, loopNum }) {
+async function synthesize({ task, context, lensOutputs, ownerContext, role, apiKey, loopNum, toolName }) {
   const labelled = lensOutputs
     .map(({ name, text }) => `--- ${name.toUpperCase()} ---\n${text}`)
     .join('\n\n');
@@ -123,7 +126,7 @@ async function synthesize({ task, context, lensOutputs, ownerContext, role, apiK
   const res = await fetchWithRetry(
     'https://api.anthropic.com/v1/messages',
     apiOptions(apiKey, {
-      model: MODEL,
+      model: selectModel('prism', 'synthesis', toolName),
       max_tokens: 2000,
       system: `You are a synthesis engine. You have received analytical perspectives on a task.
 Your job: synthesize them into a single, clear recommendation.
@@ -164,9 +167,15 @@ Loop: ${loopNum}/${MAX_LOOPS}`
   return d.content?.[0]?.text || '';
 }
 
-export async function runPRISM(task, context, role, ownerContext, apiKey) {
+export async function runPRISM(task, context, role, ownerContext, apiKey, toolName = '') {
   let lastSynthesis = '';
   let confidence = 0;
+
+  log('info', 'prism_start', {
+    tool: toolName,
+    lens_model: selectModel('prism', 'lens'),
+    synthesis_model: selectModel('prism', 'synthesis', toolName),
+  });
 
   for (let loop = 1; loop <= MAX_LOOPS; loop++) {
     // Run lenses in parallel; use allSettled so one failure doesn't abort all
@@ -191,7 +200,7 @@ export async function runPRISM(task, context, role, ownerContext, apiKey) {
     }
 
     lastSynthesis = await synthesize({
-      task, context, lensOutputs, ownerContext, role, apiKey, loopNum: loop
+      task, context, lensOutputs, ownerContext, role, apiKey, loopNum: loop, toolName
     });
 
     confidence = extractConfidence(lastSynthesis);

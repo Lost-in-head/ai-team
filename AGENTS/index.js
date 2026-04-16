@@ -1,11 +1,11 @@
 /**
  * AI Team Framework — MCP Server Entry Point
  *
- * Registers all 20 specialist skills with Claude Desktop via MCP.
+ * Registers all specialist skills with Claude Desktop via MCP.
  * Loads OWNER_CONTEXT.md on startup — no business logic hardcoded here.
  *
- * Start: node src/index.js
- * Dev:   node --watch src/index.js
+ * Start: node index.js
+ * Dev:   node --watch index.js
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -75,6 +75,6 @@ await server.connect(transport);
 
 const contextStatus = contextExists
   ? 'OWNER_CONTEXT.md loaded ✓'
-  : 'WARNING: memory/OWNER_CONTEXT.md not found — copy template and fill in';
+  : 'WARNING: OWNER_CONTEXT.md not found — copy OWNER_CONTEXT.template.md and fill in';
 
-console.error(`[AI-TEAM-CORE] 20 skills active | ${contextStatus}`);
+console.error(`[AI-TEAM-CORE] ${tools.length} tools active | ${contextStatus}`);

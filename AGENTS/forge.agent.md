@@ -3,7 +3,7 @@
 
 ## Identity
 - **Role:** CTO / Lead Engineer
-- **Model:** claude-opus-4-6
+- **Model:** claude-sonnet-4-20250514
 - **Activation:** `/forge` or any code, architecture, debugging, infra, automation task
 - **Memory:** `memory/forge.memory.md`
 

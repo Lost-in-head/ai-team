@@ -9,24 +9,34 @@
  *
  * Owner context is loaded from OWNER_CONTEXT.md (same directory) at startup.
  * No business logic is hardcoded here — everything flows from the context file.
+ *
+ * Model routing — costs are tiered by task complexity:
+ *   Haiku   → FAST path and LOOP planning/step calls  (cheapest)
+ *   Sonnet  → LOOP synthesis, PRISM lenses            (mid-tier)
+ *   Opus    → PRISM synthesis on high-stakes tools    (reserved)
  */
 
 import { tools, ROLES, PRISM_TOOLS, LOOP_TOOLS, PRISM_KEYWORDS } from './tools.js';
 import { runPRISM } from './prism.js';
+import { MODELS, selectModel } from './models.js';
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Claude Opus 4 API identifier (marketing name: claude-opus-4)
-const MODEL = 'claude-opus-4-20250514';
-
-// Maximum characters kept in accumulated LOOP context to avoid hitting token limits
+// Characters of accumulated step context kept between LOOP iterations.
+// Preserves the original context prefix + the most recent step outputs.
 const LOOP_CONTEXT_CAP = 8000;
 
 // Fetch timeout in milliseconds
 const FETCH_TIMEOUT_MS = 45_000;
+
+// Valid forceMode values
+const VALID_MODES = new Set(['fast', 'prism', 'loop']);
+
+// Max bytes allowed in write_memory content
+const MEMORY_CONTENT_MAX_BYTES = 102_400; // 100 KB
 
 // ─────────────────────────────────────────────────────────────
 // OWNER CONTEXT LOADER
@@ -107,25 +117,38 @@ export async function handleTool(name, args) {
     return { content: [{ type: 'text', text: 'Error: ANTHROPIC_API_KEY not set in AGENTS/.env' }], isError: true };
   }
 
+  // ── Validate task ──────────────────────────────────────────
+  const task = (args.task || '').trim();
+  if (!task) {
+    return { content: [{ type: 'text', text: 'Error: task is required and must be a non-empty string' }], isError: true };
+  }
+
+  // ── Validate mode override ─────────────────────────────────
+  const forceMode = args.mode;
+  if (forceMode !== undefined && !VALID_MODES.has(forceMode)) {
+    return {
+      content: [{ type: 'text', text: `Error: invalid mode '${forceMode}'. Must be one of: fast, prism, loop` }],
+      isError: true
+    };
+  }
+
   const role = ROLES[name] || 'AI specialist';
-  const task = args.task;
   const context = args.context || '';
-  const forceMode = args.mode; // optional: 'fast' | 'prism' | 'loop'
 
   try {
     const mode = forceMode || detectMode(name, task);
-    log('info', 'tool_call', { tool: name, mode });
+    log('info', 'tool_call', { tool: name, mode, model_fast: MODELS.fast, model_mid: MODELS.mid });
 
     if (mode === 'loop') {
-      return await runLoop(task, context, role, apiKey);
+      return await runLoop(task, context, role, apiKey, name);
     }
 
     if (mode === 'prism') {
-      const result = await runPRISM(task, context, role, OWNER_CONTEXT, apiKey);
+      const result = await runPRISM(task, context, role, OWNER_CONTEXT, apiKey, name);
       return { content: [{ type: 'text', text: result.text }] };
     }
 
-    return await fastPath(task, context, role, apiKey);
+    return await fastPath(task, context, role, apiKey, name);
 
   } catch (e) {
     log('error', 'handler_error', { tool: name, error: e.message });
@@ -148,6 +171,12 @@ function handleWriteMemory(args) {
   }
   if (!content) {
     return { content: [{ type: 'text', text: 'Error: content is required' }], isError: true };
+  }
+  if (Buffer.byteLength(content, 'utf8') > MEMORY_CONTENT_MAX_BYTES) {
+    return {
+      content: [{ type: 'text', text: `Error: content exceeds ${MEMORY_CONTENT_MAX_BYTES / 1024}KB limit. Summarise before saving.` }],
+      isError: true
+    };
   }
 
   const filePath = join(__dirname, `${agent}.memory.md`);
@@ -194,11 +223,11 @@ function userContent(task, context) {
 // ─────────────────────────────────────────────────────────────
 // FAST PATH — single call
 // ─────────────────────────────────────────────────────────────
-async function fastPath(task, context, role, apiKey) {
+async function fastPath(task, context, role, apiKey, toolName = '') {
   const res = await fetchWithRetry(
     'https://api.anthropic.com/v1/messages',
     apiOptions(apiKey, {
-      model: MODEL,
+      model: selectModel('fast', 'call', toolName),
       max_tokens: 4096,
       system: `You are a specialist AI assistant. Role: ${role}
 
@@ -227,15 +256,15 @@ Default format if not specified:
 // LOOP MODE — multi-step autonomous execution
 // Plan → Execute steps → Validate → Synthesize
 // ─────────────────────────────────────────────────────────────
-async function runLoop(task, context, role, apiKey) {
+async function runLoop(task, context, role, apiKey, toolName = '') {
   const MAX_STEPS = 5;
   const steps = [];
 
-  // Step 1: Plan
+  // Step 1: Plan — use fast model, planning is cheap structured output
   const planRes = await fetchWithRetry(
     'https://api.anthropic.com/v1/messages',
     apiOptions(apiKey, {
-      model: MODEL,
+      model: selectModel('loop', 'plan', toolName),
       max_tokens: 1000,
       system: `You are a task planner. Role: ${role}\n\nOwner context:\n${OWNER_CONTEXT}
 
@@ -247,7 +276,7 @@ No preamble, no markdown fences.`,
     })
   );
 
-  if (!planRes.ok) return fastPath(task, context, role, apiKey);
+  if (!planRes.ok) return fastPath(task, context, role, apiKey, toolName);
 
   let plan;
   try {
@@ -256,41 +285,48 @@ No preamble, no markdown fences.`,
     plan = JSON.parse(planText);
   } catch {
     // If planning fails, fall back to fast path
-    return fastPath(task, context, role, apiKey);
+    return fastPath(task, context, role, apiKey, toolName);
   }
 
-  // Step 2: Execute each step
-  // Cap accumulated context to avoid exceeding model token limits
-  let accumulatedContext = context;
+  // Step 2: Execute each step — fast model, individual focused calls
+  // Preserve original context at the front; trim oldest step outputs when capping.
+  const originalContext = context;
+  let stepOutputs = '';
   for (const step of plan.slice(0, MAX_STEPS)) {
     const stepRes = await fetchWithRetry(
       'https://api.anthropic.com/v1/messages',
       apiOptions(apiKey, {
-        model: MODEL,
+        model: selectModel('loop', 'step', toolName),
         max_tokens: 2000,
         system: `You are executing step ${step.step} of a multi-step task. Role: ${role}\n\nOwner context:\n${OWNER_CONTEXT}\n\nFull task: ${task}\nExpected output for this step: ${step.expected_output}`,
         messages: [{
           role: 'user',
-          content: `Execute: ${step.action}\n\n<accumulated_context>${accumulatedContext}</accumulated_context>`
+          content: `Execute: ${step.action}\n\n<original_context>${originalContext}</original_context>\n<prior_steps>${stepOutputs}</prior_steps>`
         }]
       })
     );
 
-    if (!stepRes.ok) break;
+    if (!stepRes.ok) {
+      log('warn', 'loop_step_failed', { step: step.step, status: stepRes.status, tool: toolName });
+      break;
+    }
     const stepData = await stepRes.json();
     const stepOutput = stepData.content?.[0]?.text || '';
     steps.push({ step: step.step, action: step.action, output: stepOutput });
 
-    // Append new output but cap total length to avoid token overflow
-    const newEntry = `\n\nStep ${step.step} output:\n${stepOutput}`;
-    accumulatedContext = (accumulatedContext + newEntry).slice(-LOOP_CONTEXT_CAP);
+    // Accumulate step outputs separately from original context.
+    // When capping, trim the oldest steps (front of stepOutputs) not the original context.
+    const newEntry = `\nStep ${step.step} (${step.action}):\n${stepOutput}\n`;
+    stepOutputs = (stepOutputs + newEntry).length > LOOP_CONTEXT_CAP
+      ? (stepOutputs + newEntry).slice(-(LOOP_CONTEXT_CAP))
+      : stepOutputs + newEntry;
   }
 
-  // Step 3: Synthesize
+  // Step 3: Synthesize — mid-tier model, this is the final quality output
   const synthRes = await fetchWithRetry(
     'https://api.anthropic.com/v1/messages',
     apiOptions(apiKey, {
-      model: MODEL,
+      model: selectModel('loop', 'synthesis', toolName),
       max_tokens: 3000,
       system: `You are synthesizing a multi-step task result. Role: ${role}\n\nOwner context:\n${OWNER_CONTEXT}
 
