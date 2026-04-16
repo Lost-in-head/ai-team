@@ -5,19 +5,22 @@
 # Supports: Ubuntu/Debian Linux, macOS
 # ─────────────────────────────────────────────────────────────
 
-set -e
+set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MCP_SERVER_DIR="$REPO_DIR/mcp-server"
-MEMORY_DIR="$REPO_DIR/memory"
+# AGENTS/ is the flat source directory — all server code and memory live here
+AGENTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$AGENTS_DIR/.." && pwd)"
+MCP_SERVER_DIR="$AGENTS_DIR"
+MEMORY_DIR="$AGENTS_DIR"
 
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║      AI Team Framework Installer     ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
-echo "Repo:   $REPO_DIR"
-echo "Server: $MCP_SERVER_DIR"
+echo "Repo:    $REPO_DIR"
+echo "Server:  $MCP_SERVER_DIR"
+echo "Memory:  $MEMORY_DIR"
 echo ""
 
 # ─────────────────────────────────────────────
@@ -34,6 +37,17 @@ if [ "$NODE_VER" -lt 18 ]; then
   exit 1
 fi
 echo "  Node.js $(node --version) ✓"
+
+# ─────────────────────────────────────────────
+# 1b. Check python3
+# ─────────────────────────────────────────────
+echo ""
+echo "► Checking python3..."
+if ! command -v python3 &>/dev/null; then
+  echo "✗ python3 not found. Install Python 3 (used to merge Claude Desktop JSON config)."
+  exit 1
+fi
+echo "  python3 $(python3 --version) ✓"
 
 # ─────────────────────────────────────────────
 # 2. Install npm dependencies
@@ -98,7 +112,7 @@ mkdir -p "$CLAUDE_CONFIG_DIR"
 echo "► Registering MCP server with Claude Desktop..."
 
 NODE_PATH=$(which node)
-SERVER_PATH="$MCP_SERVER_DIR/src/index.js"
+SERVER_PATH="$MCP_SERVER_DIR/index.js"
 
 # Build the new server entry
 NEW_ENTRY=$(cat <<EOF
@@ -129,22 +143,31 @@ else
   else
     # Back up and patch
     cp "$CLAUDE_CONFIG" "$CLAUDE_CONFIG.backup"
-    # Use Python to safely merge JSON (available on all systems)
-    python3 - <<PYEOF
-import json, sys
+    # Use Python to safely merge JSON.
+    # Values are passed via environment variables — NOT interpolated into
+    # the Python source — to avoid injection via paths containing quotes.
+    CLAUDE_CONFIG="$CLAUDE_CONFIG" \
+    AI_TEAM_NODE_PATH="$NODE_PATH" \
+    AI_TEAM_SERVER_PATH="$SERVER_PATH" \
+    python3 - <<'PYEOF'
+import json, os, sys
 
-with open('$CLAUDE_CONFIG') as f:
+cfg_path        = os.environ['CLAUDE_CONFIG']
+ai_node_path    = os.environ['AI_TEAM_NODE_PATH']
+ai_server_path  = os.environ['AI_TEAM_SERVER_PATH']
+
+with open(cfg_path) as f:
     config = json.load(f)
 
 if 'mcpServers' not in config:
     config['mcpServers'] = {}
 
 config['mcpServers']['ai-team-core'] = {
-    'command': '$NODE_PATH',
-    'args': ['$SERVER_PATH']
+    'command': ai_node_path,
+    'args': [ai_server_path]
 }
 
-with open('$CLAUDE_CONFIG', 'w') as f:
+with open(cfg_path, 'w') as f:
     json.dump(config, f, indent=2)
 
 print('  Patched existing config ✓')
