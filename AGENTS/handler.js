@@ -97,7 +97,7 @@ async function fetchWithRetry(url, options, retries = 3) {
   throw new Error('Max retries exceeded');
 }
 
-const VALID_AGENTS = new Set(['nexus','atlas','forge','ledger','oracle','engine','pulse','shield','closer']);
+const VALID_AGENTS = new Set(['nexus','atlas','forge','ledger','oracle','engine','pulse','shield','closer','lock']);
 
 // ─────────────────────────────────────────────────────────────
 // MAIN HANDLER

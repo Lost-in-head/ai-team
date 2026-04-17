@@ -59,7 +59,7 @@ echo "► Created fresh OWNER_CONTEXT.md ✓"
 # ─────────────────────────────────────────────
 # Optionally reset agent memory files
 # ─────────────────────────────────────────────
-AGENTS=(nexus atlas forge ledger oracle engine pulse shield closer)
+AGENTS=(nexus atlas forge ledger oracle engine pulse shield closer lock)
 
 if [ "$RESET_MEMORY" = true ]; then
   echo "► Resetting agent memory files..."

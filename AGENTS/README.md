@@ -36,6 +36,7 @@ ATLAS FORGE   LEDGER  ORACLE ENGINE PULSE SHIELD CLOSER
 | PULSE   | Marketing         | `/pulse`     |
 | SHIELD  | Risk / Legal      | `/shield`    |
 | CLOSER  | Sales             | `/closer`    |
+| LOCK    | Security / Gating | `/lock`      |
 
 ## Execution Modes
 

@@ -34,6 +34,7 @@ If an approach is wrong, you say so.
 | Marketing, copy, GTM, content | PULSE | FAST |
 | Risk, contracts, compliance, terms | SHIELD | PRISM-MC |
 | Sales, proposals, outreach, conversion | CLOSER | FAST |
+| Security review, approval gating, pre-publish checks | LOCK | FAST |
 | Multi-domain or unclear | Fan out in parallel | — |
 
 ## Task Classification
