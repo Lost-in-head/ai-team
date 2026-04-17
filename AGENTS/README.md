@@ -1,49 +1,69 @@
 # AI Team Framework
 
-A 9-agent AI executive team that runs inside Claude Desktop via MCP.
-Deploy once. Swap business context in a single file. Redeploy for any model.
+A 10-agent AI executive team running inside Claude Desktop via MCP.
+Split into a 5-agent **Starting Lineup** for daily operations and a 5-agent **Bench**
+available on-call — no setup required, ready to activate when the business grows into them.
+
+---
+
+## Team Structure
+
+### ⚡ Starting Lineup — Active Rotation
+
+| Agent | Role | Invoke |
+|-------|------|--------|
+| **NEXUS** | Orchestrator — routes all tasks, synthesizes outputs | `/nexus` |
+| **FORGE** | Engineering / CTO — code, infra, automation | `/forge` |
+| **ORACLE** | Research — market intel, competitive analysis | `/oracle` |
+| **PULSE** | Marketing / Content — copy, GTM, content creation | `/pulse` |
+| **LOCK** | Security / Gating — approvals, risk flags | `/lock` |
+
+### 🪑 Bench — On-Call, Not Active by Default
+
+| Agent | Role | Activate When... | Invoke |
+|-------|------|------------------|--------|
+| **ATLAS** | Strategy / CEO | 2+ business verticals running | `/atlas` |
+| **LEDGER** | Finance / CFO | Real revenue, pricing decisions needed | `/ledger` |
+| **ENGINE** | Operations / COO | Repeatable processes need SOPs | `/engine` |
+| **SHIELD** | Risk / Legal | Contracts, compliance, deep TOS review | `/shield` |
+| **CLOSER** | Sales / Revenue | Active client pipeline, 5+ prospects | `/closer` |
+
+Bench agents are fully defined and functional. Call any of them directly at any time for specific tasks.
+Nothing is disabled — they simply aren't on the active routing table.
+See `TEAM_ROSTER.md` for full elevation criteria and bench coverage rules.
 
 ---
 
 ## Architecture
 
 ```
-OWNER_CONTEXT.md          ← THE only file you change per deployment
+OWNER_CONTEXT.md          ← The only file you change per deployment
+TEAM_ROSTER.md            ← Who is active vs bench right now
         │
         ▼
    NEXUS (Orchestrator)   ← Every task enters here
         │
-   ┌────┴────────────────────────────────────────┐
-   ▼    ▼        ▼       ▼      ▼      ▼    ▼   ▼
-ATLAS FORGE   LEDGER  ORACLE ENGINE PULSE SHIELD CLOSER
-(Strategy)(Eng)(Finance)(Research)(Ops)(Mktg)(Risk)(Sales)
+   ┌────┴─────────────────────┐
+   ▼         ▼       ▼       ▼
+ FORGE    ORACLE   PULSE    LOCK
+ (Eng)  (Research)(Content)(Security)
         │
         ▼
-  mcp-server/             ← 20 specialist skills via Anthropic API
+  mcp-server/             ← 21 specialist skills via Anthropic API
   (3 execution modes: FAST / PRISM-MC / LOOP)
+
+  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ (bench, on-call) ─ ─ ─ ─ ─ ─ ─ ─
+  ATLAS   LEDGER   ENGINE   SHIELD   CLOSER
 ```
 
-## Agents
-
-| Agent   | Role              | Invoke       |
-|---------|-------------------|--------------|
-| NEXUS   | Orchestrator      | `/nexus`     |
-| ATLAS   | Strategy / CEO    | `/atlas`     |
-| FORGE   | Engineering / CTO | `/forge`     |
-| LEDGER  | Finance / CFO     | `/ledger`    |
-| ORACLE  | Research          | `/oracle`    |
-| ENGINE  | Operations        | `/engine`    |
-| PULSE   | Marketing         | `/pulse`     |
-| SHIELD  | Risk / Legal      | `/shield`    |
-| CLOSER  | Sales             | `/closer`    |
-| LOCK    | Security / Gating | `/lock`      |
+---
 
 ## Execution Modes
 
-**FAST PATH** — Single Anthropic API call. Simple lookups, quick tasks.
+**FAST PATH** — Single API call. Simple lookups, quick tasks.
 
-**PRISM-MC** — Triple-lens parallel calls (Optimizer / Validator / Contrarian).
-Confidence gate. Loops up to 3× if below threshold.
+**PRISM-MC** — Triple-lens parallel (Optimizer / Validator / Contrarian).
+Confidence gate, loops up to 3× if below threshold.
 Used for: strategy, architecture, pricing, launch decisions.
 
 **LOOP** — Multi-step autonomous execution. Plan → Act → Validate → Repeat.
@@ -55,13 +75,13 @@ Used for: complex builds, research tasks, multi-domain projects.
 
 ### 1. Fill in your context
 ```bash
-cp memory/OWNER_CONTEXT.template.md memory/OWNER_CONTEXT.md
-# Edit memory/OWNER_CONTEXT.md with your details
+cp AGENTS/OWNER_CONTEXT.template.md AGENTS/OWNER_CONTEXT.md
+# Edit AGENTS/OWNER_CONTEXT.md with your details
 ```
 
 ### 2. Install MCP server
 ```bash
-cd mcp-server
+cd AGENTS
 npm install
 cp .env.example .env
 # Add your ANTHROPIC_API_KEY to .env
@@ -69,16 +89,42 @@ cp .env.example .env
 
 ### 3. Register with Claude Desktop
 ```bash
-./scripts/install.sh
+bash AGENTS/install.sh
 # Restart Claude Desktop
 ```
 
-### 4. Activate
-In Claude Desktop, start any message with an agent name:
+### 4. Start
 ```
-/nexus  I need to build an automated listing tool for eBay
-/forge  Debug this Python error: [paste error]
-/atlas  What should I prioritize this week?
+/nexus  Read OWNER_CONTEXT.md and TEAM_ROSTER.md. Give me a status report.
+```
+
+---
+
+## Activating a Bench Agent (Permanent Elevation)
+
+1. Edit `TEAM_ROSTER.md` — move agent from bench to starting lineup
+2. Add agent to NEXUS active routing table
+3. Start maintaining their memory file each session
+
+To call a bench agent once without elevating them:
+```
+/atlas  One-off strategic review of X — you're being called in from the bench
+```
+
+---
+
+## Memory Protocol
+
+Active agents maintain their memory file every session.
+At end of session:
+```
+PAUSE — save session state
+```
+NEXUS writes state to all active agent memory files before closing.
+
+To resume:
+```
+/nexus  Resume. Read OWNER_CONTEXT.md, TEAM_ROSTER.md, and all memory files. Status + next action.
 ```
 
 ---
@@ -86,77 +132,8 @@ In Claude Desktop, start any message with an agent name:
 ## New Deployment (Different Business)
 
 ```bash
-./scripts/new-deployment.sh "My New Business"
-# Generates a fresh OWNER_CONTEXT.md template for that business
-# Clears agent memory files
-# Ready to go
+bash AGENTS/new-deployment.sh "My New Business"
 ```
-
----
-
-## Memory Protocol
-
-Each agent has a persistent memory file in `memory/`. At the end of a session:
-```
-PAUSE — save session state
-```
-NEXUS will write current state to all relevant memory files before closing.
-
-To resume:
-```
-/nexus  Resume. Read OWNER_CONTEXT.md and all memory files. Status + next action.
-```
-
----
-
-## File Structure
-
-```
-ai-team/
-├── README.md
-├── agents/                    # Agent definitions (system prompts)
-│   ├── nexus.agent.md
-│   ├── atlas.agent.md
-│   ├── forge.agent.md
-│   ├── ledger.agent.md
-│   ├── oracle.agent.md
-│   ├── engine.agent.md
-│   ├── pulse.agent.md
-│   ├── shield.agent.md
-│   └── closer.agent.md
-├── memory/                    # Persistent state (read/write each session)
-│   ├── OWNER_CONTEXT.template.md   ← copy + fill this in
-│   ├── OWNER_CONTEXT.md            ← your live context (gitignore this)
-│   ├── README.md
-│   └── [agent].memory.md           ← one per agent
-├── mcp-server/               # Node.js MCP server (20 skills)
-│   ├── package.json
-│   ├── .env.example
-│   └── src/
-│       ├── index.js
-│       ├── tools.js
-│       ├── handler.js
-│       └── prism.js
-├── scripts/
-│   ├── install.sh            # Register MCP with Claude Desktop
-│   ├── new-deployment.sh     # Scaffold new business context
-│   └── session-save.sh       # Manual session state backup
-└── config/
-    └── claude-desktop.example.json
-```
-
----
-
-## Adapting for a New Business Model
-
-The team is business-agnostic. The agents have no hardcoded business context.
-Everything flows from `OWNER_CONTEXT.md`. To redeploy:
-
-1. Run `./scripts/new-deployment.sh "Business Name"`
-2. Fill in the generated `OWNER_CONTEXT.md`
-3. Restart Claude Desktop
-
-No agent files need to change. No MCP server changes. Just the context file.
 
 ---
 
