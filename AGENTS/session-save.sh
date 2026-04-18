@@ -41,7 +41,7 @@ fi
 # ─────────────────────────────────────────────
 # Save all agent memory files
 # ─────────────────────────────────────────────
-AGENTS=(nexus atlas forge ledger oracle engine pulse shield closer lock)
+AGENTS=(conductor compass forge books prophecy engine pulse kat lock closer)
 for agent in "${AGENTS[@]}"; do
   MEM_FILE="$MEMORY_DIR/${agent}.memory.md"
   if [ -f "$MEM_FILE" ] && [ -s "$MEM_FILE" ]; then

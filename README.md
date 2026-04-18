@@ -11,11 +11,11 @@ Deploy once. Swap business context in a single file. Redeploy for any model.
 OWNER_CONTEXT.md          ← THE only file you change per deployment
         │
         ▼
-   NEXUS (Orchestrator)   ← Every task enters here
+   CONDUCTOR (Orchestrator)   ← Every task enters here
         │
    ┌────┴────────────────────────────────────────┐
    ▼    ▼        ▼       ▼      ▼      ▼    ▼   ▼
-ATLAS FORGE   LEDGER  ORACLE ENGINE PULSE SHIELD CLOSER
+COMPASS FORGE   BOOKS  PROPHECY ENGINE PULSE KAT CLOSER
 (Strategy)(Eng)(Finance)(Research)(Ops)(Mktg)(Risk)(Sales)
         │
         ▼
@@ -27,14 +27,14 @@ ATLAS FORGE   LEDGER  ORACLE ENGINE PULSE SHIELD CLOSER
 
 | Agent   | Role              | Invoke       |
 |---------|-------------------|--------------|
-| NEXUS   | Orchestrator      | `/nexus`     |
-| ATLAS   | Strategy / CEO    | `/atlas`     |
+| CONDUCTOR   | Orchestrator      | `/conductor`     |
+| COMPASS   | Strategy / CEO    | `/atlas`     |
 | FORGE   | Engineering / CTO | `/forge`     |
-| LEDGER  | Finance / CFO     | `/ledger`    |
-| ORACLE  | Research          | `/oracle`    |
+| BOOKS  | Finance / CFO     | `/ledger`    |
+| PROPHECY  | Research          | `/oracle`    |
 | ENGINE  | Operations        | `/engine`    |
 | PULSE   | Marketing         | `/pulse`     |
-| SHIELD  | Risk / Legal      | `/shield`    |
+| KAT  | Risk / Legal      | `/shield`    |
 | CLOSER  | Sales             | `/closer`    |
 
 ## Execution Modes
@@ -75,7 +75,7 @@ bash AGENTS/install.sh
 ### 4. Activate
 In Claude Desktop, start any message with an agent name:
 ```
-/nexus  I need to build an automated listing tool for eBay
+/conductor  I need to build an automated listing tool for eBay
 /forge  Debug this Python error: [paste error]
 /atlas  What should I prioritize this week?
 ```
@@ -99,12 +99,12 @@ Each agent has a persistent memory file in `AGENTS/`. At the end of a session:
 ```
 PAUSE — save session state
 ```
-NEXUS will call the `write_memory` tool to persist state to `[agent].memory.md`.
+CONDUCTOR will call the `write_memory` tool to persist state to `[agent].memory.md`.
 Memory files are gitignored — they stay local and private.
 
 To resume:
 ```
-/nexus  Resume. Read OWNER_CONTEXT.md and all memory files. Status + next action.
+/conductor  Resume. Read OWNER_CONTEXT.md and all memory files. Status + next action.
 ```
 
 ---

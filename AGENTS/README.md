@@ -1,138 +1,110 @@
 # AI Team Framework
 
 A 10-agent AI executive team running inside Claude Desktop via MCP.
-Split into a 5-agent **Starting Lineup** for daily operations and a 5-agent **Bench**
-available on-call — no setup required, ready to activate when the business grows into them.
+5-agent **Starting Lineup** for daily operations. 5-agent **Bench** ready on-call.
 
 ---
 
 ## Team Structure
 
-### ⚡ Starting Lineup — Active Rotation
+### ⚡ Starting Lineup
 
-| Agent | Role | Invoke |
-|-------|------|--------|
-| **NEXUS** | Orchestrator — routes all tasks, synthesizes outputs | `/nexus` |
-| **FORGE** | Engineering / CTO — code, infra, automation | `/forge` |
-| **ORACLE** | Research — market intel, competitive analysis | `/oracle` |
-| **PULSE** | Marketing / Content — copy, GTM, content creation | `/pulse` |
-| **LOCK** | Security / Gating — approvals, risk flags | `/lock` |
+| Agent | Former Name | Role | Invoke |
+|-------|-------------|------|--------|
+| **CONDUCTOR** | NEXUS | Orchestrator | `/conductor` or `/nexus` |
+| **FORGE** | — | Engineering / CTO | `/forge` |
+| **PROPHECY** | ORACLE | Research | `/prophecy` or `/oracle` |
+| **PULSE** | — | Marketing / Content | `/pulse` |
+| **LOCK** | — | Security / Gating | `/lock` |
 
-### 🪑 Bench — On-Call, Not Active by Default
+### 🪑 Bench — On-Call
 
-| Agent | Role | Activate When... | Invoke |
-|-------|------|------------------|--------|
-| **ATLAS** | Strategy / CEO | 2+ business verticals running | `/atlas` |
-| **LEDGER** | Finance / CFO | Real revenue, pricing decisions needed | `/ledger` |
-| **ENGINE** | Operations / COO | Repeatable processes need SOPs | `/engine` |
-| **SHIELD** | Risk / Legal | Contracts, compliance, deep TOS review | `/shield` |
-| **CLOSER** | Sales / Revenue | Active client pipeline, 5+ prospects | `/closer` |
+| Agent | Former Name | Role | Invoke |
+|-------|-------------|------|--------|
+| **COMPASS** | ATLAS | Strategy / CEO | `/compass` or `/atlas` |
+| **BOOKS** | LEDGER | Finance / CFO | `/books` or `/ledger` |
+| **ENGINE** | — | Operations / COO | `/engine` |
+| **KAT** | SHIELD | Risk / Legal | `/kat` or `/shield` |
+| **CLOSER** | — | Sales / Revenue | `/closer` |
 
-Bench agents are fully defined and functional. Call any of them directly at any time for specific tasks.
-Nothing is disabled — they simply aren't on the active routing table.
-See `TEAM_ROSTER.md` for full elevation criteria and bench coverage rules.
+> **AUTHOR = OWNER** — both refer to you. Use either in OWNER_CONTEXT.md or in conversation.
+
+See `TEAM_ROSTER.md` for elevation criteria, coverage rules, and full name reference.
 
 ---
 
 ## Architecture
 
 ```
-OWNER_CONTEXT.md          ← The only file you change per deployment
-TEAM_ROSTER.md            ← Who is active vs bench right now
+AUTHOR / OWNER (you)
         │
-        ▼
-   NEXUS (Orchestrator)   ← Every task enters here
+OWNER_CONTEXT.md + TEAM_ROSTER.md
         │
-   ┌────┴─────────────────────┐
-   ▼         ▼       ▼       ▼
- FORGE    ORACLE   PULSE    LOCK
- (Eng)  (Research)(Content)(Security)
+   CONDUCTOR (Orchestrator)
         │
-        ▼
-  mcp-server/             ← 21 specialist skills via Anthropic API
-  (3 execution modes: FAST / PRISM-MC / LOOP)
+   ┌────┼────────────┐
+FORGE  PROPHECY  PULSE  LOCK
+        │
+  mcp-server/ — 21 skills (FAST / PRISM-MC / LOOP)
 
-  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ (bench, on-call) ─ ─ ─ ─ ─ ─ ─ ─
-  ATLAS   LEDGER   ENGINE   SHIELD   CLOSER
+  ─ ─ bench ─ ─
+  COMPASS  BOOKS  ENGINE  KAT  CLOSER
 ```
 
 ---
 
 ## Execution Modes
 
-**FAST PATH** — Single API call. Simple lookups, quick tasks.
+**FAST PATH** — Single API call. Haiku model. Quick tasks.
 
 **PRISM-MC** — Triple-lens parallel (Optimizer / Validator / Contrarian).
-Confidence gate, loops up to 3× if below threshold.
-Used for: strategy, architecture, pricing, launch decisions.
+Sonnet for lenses. Opus for final synthesis on high-stakes tools.
 
-**LOOP** — Multi-step autonomous execution. Plan → Act → Validate → Repeat.
-Used for: complex builds, research tasks, multi-domain projects.
+**LOOP** — Multi-step autonomous. Plan → Act → Validate → Repeat.
+Haiku for steps, Sonnet for synthesis.
 
 ---
 
 ## Deploy
 
-### 1. Fill in your context
 ```bash
+# 1. Fill in your context
 cp AGENTS/OWNER_CONTEXT.template.md AGENTS/OWNER_CONTEXT.md
-# Edit AGENTS/OWNER_CONTEXT.md with your details
-```
 
-### 2. Install MCP server
-```bash
-cd AGENTS
-npm install
-cp .env.example .env
-# Add your ANTHROPIC_API_KEY to .env
-```
+# 2. Install
+cd AGENTS && npm install
+cp .env.example .env   # add ANTHROPIC_API_KEY
 
-### 3. Register with Claude Desktop
-```bash
+# 3. Register with Claude Desktop
 bash AGENTS/install.sh
 # Restart Claude Desktop
-```
 
-### 4. Start
-```
-/nexus  Read OWNER_CONTEXT.md and TEAM_ROSTER.md. Give me a status report.
+# 4. Start
+# Open CONDUCTOR project in Claude Desktop:
+# /conductor  Read OWNER_CONTEXT.md and TEAM_ROSTER.md. Status report.
 ```
 
 ---
 
-## Activating a Bench Agent (Permanent Elevation)
+## New Deployment
 
-1. Edit `TEAM_ROSTER.md` — move agent from bench to starting lineup
-2. Add agent to NEXUS active routing table
-3. Start maintaining their memory file each session
-
-To call a bench agent once without elevating them:
-```
-/atlas  One-off strategic review of X — you're being called in from the bench
+```bash
+bash AGENTS/new-deployment.sh "My New Business"
 ```
 
 ---
 
 ## Memory Protocol
 
-Active agents maintain their memory file every session.
-At end of session:
+Active agents maintain memory every session.
 ```
 PAUSE — save session state
 ```
-NEXUS writes state to all active agent memory files before closing.
+CONDUCTOR writes to all active agent memory files before closing.
 
-To resume:
+Resume:
 ```
-/nexus  Resume. Read OWNER_CONTEXT.md, TEAM_ROSTER.md, and all memory files. Status + next action.
-```
-
----
-
-## New Deployment (Different Business)
-
-```bash
-bash AGENTS/new-deployment.sh "My New Business"
+/conductor  Resume. Read OWNER_CONTEXT.md, TEAM_ROSTER.md, and all memory files.
 ```
 
 ---

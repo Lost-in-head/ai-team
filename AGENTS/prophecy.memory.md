@@ -1,4 +1,4 @@
-# ORACLE MEMORY
+# PROPHECY MEMORY
 Last Updated: —
 Session Count: 0
 

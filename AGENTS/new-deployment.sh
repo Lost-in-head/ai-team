@@ -59,7 +59,7 @@ echo "► Created fresh OWNER_CONTEXT.md ✓"
 # ─────────────────────────────────────────────
 # Optionally reset agent memory files
 # ─────────────────────────────────────────────
-AGENTS=(nexus atlas forge ledger oracle engine pulse shield closer lock)
+AGENTS=(conductor compass forge books prophecy engine pulse kat lock closer)
 
 if [ "$RESET_MEMORY" = true ]; then
   echo "► Resetting agent memory files..."
