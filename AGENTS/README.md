@@ -1,161 +1,111 @@
 # AI Team Framework
 
-A 9-agent AI executive team that runs inside Claude Desktop via MCP.
-Deploy once. Swap business context in a single file. Redeploy for any model.
+A 10-agent AI executive team running inside Claude Desktop via MCP.
+5-agent **Starting Lineup** for daily operations. 5-agent **Bench** ready on-call.
+
+---
+
+## Team Structure
+
+### ⚡ Starting Lineup
+
+| Agent | Former Name | Role | Invoke |
+|-------|-------------|------|--------|
+| **CONDUCTOR** | NEXUS | Orchestrator | `/conductor` or `/nexus` |
+| **FORGE** | — | Engineering / CTO | `/forge` |
+| **PROPHECY** | ORACLE | Research | `/prophecy` or `/oracle` |
+| **PULSE** | — | Marketing / Content | `/pulse` |
+| **LOCK** | — | Security / Gating | `/lock` |
+
+### 🪑 Bench — On-Call
+
+| Agent | Former Name | Role | Invoke |
+|-------|-------------|------|--------|
+| **COMPASS** | ATLAS | Strategy / CEO | `/compass` or `/atlas` |
+| **BOOKS** | LEDGER | Finance / CFO | `/books` or `/ledger` |
+| **ENGINE** | — | Operations / COO | `/engine` |
+| **KAT** | SHIELD | Risk / Legal | `/kat` or `/shield` |
+| **CLOSER** | — | Sales / Revenue | `/closer` |
+
+> **AUTHOR = OWNER** — both refer to you. Use either in OWNER_CONTEXT.md or in conversation.
+
+See `TEAM_ROSTER.md` for elevation criteria, coverage rules, and full name reference.
 
 ---
 
 ## Architecture
 
 ```
-OWNER_CONTEXT.md          ← THE only file you change per deployment
+AUTHOR / OWNER (you)
         │
-        ▼
-   NEXUS (Orchestrator)   ← Every task enters here
+OWNER_CONTEXT.md + TEAM_ROSTER.md
         │
-   ┌────┴────────────────────────────────────────┐
-   ▼    ▼        ▼       ▼      ▼      ▼    ▼   ▼
-ATLAS FORGE   LEDGER  ORACLE ENGINE PULSE SHIELD CLOSER
-(Strategy)(Eng)(Finance)(Research)(Ops)(Mktg)(Risk)(Sales)
+   CONDUCTOR (Orchestrator)
         │
-        ▼
-  mcp-server/             ← 20 specialist skills via Anthropic API
-  (3 execution modes: FAST / PRISM-MC / LOOP)
+   ┌────┼────────────┐
+FORGE  PROPHECY  PULSE  LOCK
+        │
+  mcp-server/ — 21 skills (FAST / PRISM-MC / LOOP)
+
+  ─ ─ bench ─ ─
+  COMPASS  BOOKS  ENGINE  KAT  CLOSER
 ```
 
-## Agents
-
-| Agent   | Role              | Invoke       |
-|---------|-------------------|--------------|
-| NEXUS   | Orchestrator      | `/nexus`     |
-| ATLAS   | Strategy / CEO    | `/atlas`     |
-| FORGE   | Engineering / CTO | `/forge`     |
-| LEDGER  | Finance / CFO     | `/ledger`    |
-| ORACLE  | Research          | `/oracle`    |
-| ENGINE  | Operations        | `/engine`    |
-| PULSE   | Marketing         | `/pulse`     |
-| SHIELD  | Risk / Legal      | `/shield`    |
-| CLOSER  | Sales             | `/closer`    |
+---
 
 ## Execution Modes
 
-**FAST PATH** — Single Anthropic API call. Simple lookups, quick tasks.
+**FAST PATH** — Single API call. Haiku model. Quick tasks.
 
-**PRISM-MC** — Triple-lens parallel calls (Optimizer / Validator / Contrarian).
-Confidence gate. Loops up to 3× if below threshold.
-Used for: strategy, architecture, pricing, launch decisions.
+**PRISM-MC** — Triple-lens parallel (Optimizer / Validator / Contrarian).
+Sonnet for lenses. Opus for final synthesis on high-stakes tools.
 
-**LOOP** — Multi-step autonomous execution. Plan → Act → Validate → Repeat.
-Used for: complex builds, research tasks, multi-domain projects.
+**LOOP** — Multi-step autonomous. Plan → Act → Validate → Repeat.
+Haiku for steps, Sonnet for synthesis.
 
 ---
 
 ## Deploy
 
-### 1. Fill in your context
 ```bash
-cp memory/OWNER_CONTEXT.template.md memory/OWNER_CONTEXT.md
-# Edit memory/OWNER_CONTEXT.md with your details
-```
+# 1. Fill in your context
+cp AGENTS/OWNER_CONTEXT.template.md AGENTS/OWNER_CONTEXT.md
 
-### 2. Install MCP server
-```bash
-cd mcp-server
-npm install
-cp .env.example .env
-# Add your ANTHROPIC_API_KEY to .env
-```
+# 2. Install
+cd AGENTS && npm install
+cp .env.example .env   # add ANTHROPIC_API_KEY
 
-### 3. Register with Claude Desktop
-```bash
-./scripts/install.sh
+# 3. Register with Claude Desktop
+bash AGENTS/install.sh
 # Restart Claude Desktop
-```
 
-### 4. Activate
-In Claude Desktop, start any message with an agent name:
-```
-/nexus  I need to build an automated listing tool for eBay
-/forge  Debug this Python error: [paste error]
-/atlas  What should I prioritize this week?
+# 4. Start
+# Open CONDUCTOR project in Claude Desktop:
+# /conductor  Read OWNER_CONTEXT.md and TEAM_ROSTER.md. Status report.
 ```
 
 ---
 
-## New Deployment (Different Business)
+## New Deployment
 
 ```bash
-./scripts/new-deployment.sh "My New Business"
-# Generates a fresh OWNER_CONTEXT.md template for that business
-# Clears agent memory files
-# Ready to go
+bash AGENTS/new-deployment.sh "My New Business"
 ```
 
 ---
 
 ## Memory Protocol
 
-Each agent has a persistent memory file in `memory/`. At the end of a session:
+Active agents maintain memory every session.
 ```
 PAUSE — save session state
 ```
-NEXUS will write current state to all relevant memory files before closing.
+CONDUCTOR writes to all active agent memory files before closing.
 
-To resume:
+Resume:
 ```
-/nexus  Resume. Read OWNER_CONTEXT.md and all memory files. Status + next action.
+/conductor  Resume. Read OWNER_CONTEXT.md, TEAM_ROSTER.md, and all memory files.
 ```
-
----
-
-## File Structure
-
-```
-ai-team/
-├── README.md
-├── agents/                    # Agent definitions (system prompts)
-│   ├── nexus.agent.md
-│   ├── atlas.agent.md
-│   ├── forge.agent.md
-│   ├── ledger.agent.md
-│   ├── oracle.agent.md
-│   ├── engine.agent.md
-│   ├── pulse.agent.md
-│   ├── shield.agent.md
-│   └── closer.agent.md
-├── memory/                    # Persistent state (read/write each session)
-│   ├── OWNER_CONTEXT.template.md   ← copy + fill this in
-│   ├── OWNER_CONTEXT.md            ← your live context (gitignore this)
-│   ├── README.md
-│   └── [agent].memory.md           ← one per agent
-├── mcp-server/               # Node.js MCP server (20 skills)
-│   ├── package.json
-│   ├── .env.example
-│   └── src/
-│       ├── index.js
-│       ├── tools.js
-│       ├── handler.js
-│       └── prism.js
-├── scripts/
-│   ├── install.sh            # Register MCP with Claude Desktop
-│   ├── new-deployment.sh     # Scaffold new business context
-│   └── session-save.sh       # Manual session state backup
-└── config/
-    └── claude-desktop.example.json
-```
-
----
-
-## Adapting for a New Business Model
-
-The team is business-agnostic. The agents have no hardcoded business context.
-Everything flows from `OWNER_CONTEXT.md`. To redeploy:
-
-1. Run `./scripts/new-deployment.sh "Business Name"`
-2. Fill in the generated `OWNER_CONTEXT.md`
-3. Restart Claude Desktop
-
-No agent files need to change. No MCP server changes. Just the context file.
 
 ---
 

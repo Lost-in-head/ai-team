@@ -1,4 +1,4 @@
-# OWNER CONTEXT
+# AUTHOR / OWNER CONTEXT
 # ─────────────────────────────────────────────────────────────
 # This is the ONLY file that changes between deployments.
 # Every agent reads this on boot. Fill in every section.
@@ -8,6 +8,7 @@
 ## OWNER PROFILE
 
 **Name:** [Your name]
+**Preferred title:** AUTHOR (or OWNER — both are accepted by all agents)
 **Location:** [City, Province/State, Country]
 **Timezone:** [e.g. EST / UTC-5]
 **Background:** [2-3 sentences — professional background, relevant skills, experience level]

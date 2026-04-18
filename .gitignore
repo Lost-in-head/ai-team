@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────
+# AI Team Framework — .gitignore
+# ─────────────────────────────────────────────────────────────
+
+# API keys and secrets — NEVER commit these
+.env
+*.env
+!.env.example
+
+# Live owner context (may contain personal/business info)
+# Copy OWNER_CONTEXT.template.md → OWNER_CONTEXT.md and fill it in
+AGENTS/OWNER_CONTEXT.md
+memory/OWNER_CONTEXT.md
+
+# Agent memory files contain session state and business context
+# Keep *.memory.md local; commit only the empty templates if desired
+AGENTS/*.memory.md
+memory/*.memory.md
+
+# Archived contexts and memory snapshots
+AGENTS/archive/
+memory/archive/
+
+# Claude Desktop user data
+AGENTS/mnt/
+
+# Node.js dependencies
+node_modules/
+AGENTS/node_modules/
+mcp-server/node_modules/
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/

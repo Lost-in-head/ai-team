@@ -8,10 +8,20 @@
  *
  * Synthesizes into a single recommendation with confidence score.
  * If confidence < threshold, loops up to MAX_LOOPS times.
+ * Uses Promise.allSettled so a single failing lens doesn't abort the run.
+ *
+ * Model routing (via models.js):
+ *   Lenses      → mid-tier (Sonnet)
+ *   Synthesis   → mid-tier, or premium (Opus) for high-stakes tools
  */
+
+import { selectModel } from './models.js';
 
 const CONFIDENCE_THRESHOLD = 0.72;
 const MAX_LOOPS = 3;
+
+// Fetch timeout in milliseconds
+const FETCH_TIMEOUT_MS = 45_000;
 
 const LENSES = {
   optimizer: {
@@ -28,16 +38,54 @@ const LENSES = {
   }
 };
 
-async function callLens(lens, task, context, role, ownerContext, apiKey) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+// ─────────────────────────────────────────────────────────────
+// STRUCTURED LOGGER
+// ─────────────────────────────────────────────────────────────
+function log(level, event, extra = {}) {
+  console.error(JSON.stringify({ ts: Date.now(), level, event, ...extra }));
+}
+
+// ─────────────────────────────────────────────────────────────
+// FETCH WITH TIMEOUT + EXPONENTIAL BACKOFF RETRY
+// ─────────────────────────────────────────────────────────────
+async function fetchWithRetry(url, options, retries = 3) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 429)) {
+        return res;
+      }
+      log('warn', 'prism_api_retry', { attempt, status: res.status });
+    } catch (err) {
+      clearTimeout(timer);
+      if (attempt === retries - 1) throw err;
+      log('warn', 'prism_fetch_error_retry', { attempt, error: err.message });
+    }
+    await new Promise(r => setTimeout(r, 1000 * 2 ** attempt));
+  }
+  throw new Error('Max retries exceeded');
+}
+
+function apiOptions(apiKey, body) {
+  return {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01'
     },
-    body: JSON.stringify({
-      model: 'claude-opus-4-20250514',
+    body: JSON.stringify(body)
+  };
+}
+
+async function callLens(lens, task, context, role, ownerContext, apiKey) {
+  const res = await fetchWithRetry(
+    'https://api.anthropic.com/v1/messages',
+    apiOptions(apiKey, {
+      model: selectModel('prism', 'lens'),
       max_tokens: 1500,
       system: `${lens.instruction}
 
@@ -49,10 +97,10 @@ ${ownerContext}
 Be concise. End your response with: CONFIDENCE: [0.0-1.0]`,
       messages: [{
         role: 'user',
-        content: `Task: ${task}${context ? `\nAdditional context: ${context}` : ''}`
+        content: `<task>${task}</task>${context ? `\n<context>${context}</context>` : ''}`
       }]
     })
-  });
+  );
 
   if (!res.ok) throw new Error(`API error ${res.status}`);
   const d = await res.json();
@@ -60,22 +108,27 @@ Be concise. End your response with: CONFIDENCE: [0.0-1.0]`,
 }
 
 function extractConfidence(text) {
-  const match = text.match(/CONFIDENCE:\s*([\d.]+)/i);
-  return match ? parseFloat(match[1]) : 0.5;
+  // Case-insensitive, accepts "CONFIDENCE: 0.85" or "Confidence: 0.85"
+  const match = text.match(/confidence[:\s]+([\d.]+)/i);
+  if (!match) {
+    log('warn', 'confidence_parse_failed', { snippet: text.slice(-100) });
+    return 0.5;
+  }
+  return parseFloat(match[1]);
 }
 
-async function synthesize(task, context, optimizerOut, validatorOut, contraryOut, ownerContext, role, apiKey, loopNum) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-opus-4-20250514',
+// synthesize uses a single options object to avoid argument-order mistakes
+async function synthesize({ task, context, lensOutputs, ownerContext, role, apiKey, loopNum, toolName }) {
+  const labelled = lensOutputs
+    .map(({ name, text }) => `--- ${name.toUpperCase()} ---\n${text}`)
+    .join('\n\n');
+
+  const res = await fetchWithRetry(
+    'https://api.anthropic.com/v1/messages',
+    apiOptions(apiKey, {
+      model: selectModel('prism', 'synthesis', toolName),
       max_tokens: 2000,
-      system: `You are a synthesis engine. You have received three analytical perspectives on a task.
+      system: `You are a synthesis engine. You have received analytical perspectives on a task.
 Your job: synthesize them into a single, clear recommendation.
 
 Role expertise: ${role}
@@ -100,46 +153,58 @@ CONFIDENCE: [0.0-1.0] — [one sentence explaining confidence level]
 NEXT ACTION → [single most important next step]`,
       messages: [{
         role: 'user',
-        content: `Task: ${task}${context ? `\nContext: ${context}` : ''}
+        content: `<task>${task}</task>${context ? `\n<context>${context}</context>` : ''}
 
---- OPTIMIZER ---
-${optimizerOut}
-
---- VALIDATOR ---
-${validatorOut}
-
---- CONTRARIAN ---
-${contraryOut}
+${labelled}
 
 Loop: ${loopNum}/${MAX_LOOPS}`
       }]
     })
-  });
+  );
 
   if (!res.ok) throw new Error(`Synthesis API error ${res.status}`);
   const d = await res.json();
   return d.content?.[0]?.text || '';
 }
 
-export async function runPRISM(task, context, role, ownerContext, apiKey) {
+export async function runPRISM(task, context, role, ownerContext, apiKey, toolName = '') {
   let lastSynthesis = '';
   let confidence = 0;
 
-  for (let loop = 1; loop <= MAX_LOOPS; loop++) {
-    // Run 3 lenses in parallel
-    const [optimizerOut, validatorOut, contraryOut] = await Promise.all([
-      callLens(LENSES.optimizer, task, context, role, ownerContext, apiKey),
-      callLens(LENSES.validator, task, context, role, ownerContext, apiKey),
-      callLens(LENSES.contrarian, task, context, role, ownerContext, apiKey)
-    ]);
+  log('info', 'prism_start', {
+    tool: toolName,
+    lens_model: selectModel('prism', 'lens'),
+    synthesis_model: selectModel('prism', 'synthesis', toolName),
+  });
 
-    lastSynthesis = await synthesize(
-      task, context,
-      optimizerOut, validatorOut, contraryOut,
-      ownerContext, role, apiKey, loop
+  for (let loop = 1; loop <= MAX_LOOPS; loop++) {
+    // Run lenses in parallel; use allSettled so one failure doesn't abort all
+    const settled = await Promise.allSettled(
+      Object.values(LENSES).map(lens =>
+        callLens(lens, task, context, role, ownerContext, apiKey)
+          .then(text => ({ name: lens.name, text }))
+      )
     );
 
+    const lensOutputs = settled
+      .filter(r => r.status === 'fulfilled')
+      .map(r => r.value);
+
+    const failed = settled.filter(r => r.status === 'rejected');
+    if (failed.length > 0) {
+      log('warn', 'prism_lens_failures', { loop, count: failed.length });
+    }
+
+    if (lensOutputs.length === 0) {
+      throw new Error('All PRISM lenses failed — cannot synthesize');
+    }
+
+    lastSynthesis = await synthesize({
+      task, context, lensOutputs, ownerContext, role, apiKey, loopNum: loop, toolName
+    });
+
     confidence = extractConfidence(lastSynthesis);
+    log('info', 'prism_loop', { loop, confidence, lensCount: lensOutputs.length });
 
     if (confidence >= CONFIDENCE_THRESHOLD) break;
 
@@ -155,3 +220,4 @@ export async function runPRISM(task, context, role, ownerContext, apiKey) {
 
   return { text: header + lastSynthesis };
 }
+

@@ -1,11 +1,11 @@
 /**
  * AI Team Framework — MCP Server Entry Point
  *
- * Registers all 20 specialist skills with Claude Desktop via MCP.
+ * Registers all specialist skills with Claude Desktop via MCP.
  * Loads OWNER_CONTEXT.md on startup — no business logic hardcoded here.
  *
- * Start: node src/index.js
- * Dev:   node --watch src/index.js
+ * Start: node index.js
+ * Dev:   node --watch index.js
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -20,7 +20,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // ─────────────────────────────────────────────────────────────
 // ENV LOADER
 // ─────────────────────────────────────────────────────────────
-const envPath = join(__dirname, '..', '.env');
+// .env lives in the same AGENTS/ directory as this file
+const envPath = join(__dirname, '.env');
 if (existsSync(envPath)) {
   readFileSync(envPath, 'utf8').split('\n').forEach(line => {
     const trimmed = line.trim();
@@ -28,15 +29,17 @@ if (existsSync(envPath)) {
     const eqIdx = trimmed.indexOf('=');
     if (eqIdx === -1) return;
     const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim();
+    // Strip surrounding single or double quotes from the value
+    const val = trimmed.slice(eqIdx + 1).trim().replace(/^(['"])(.*)\1$/, '$2');
     if (key && !process.env[key]) process.env[key] = val;
   });
 }
 
 // ─────────────────────────────────────────────────────────────
 // OWNER CONTEXT CHECK
+// OWNER_CONTEXT.md lives in the same flat AGENTS/ directory as this file.
 // ─────────────────────────────────────────────────────────────
-const contextPath = join(__dirname, '..', '..', 'memory', 'OWNER_CONTEXT.md');
+const contextPath = join(__dirname, 'OWNER_CONTEXT.md');
 const contextExists = existsSync(contextPath);
 
 import { tools } from './tools.js';
@@ -72,6 +75,6 @@ await server.connect(transport);
 
 const contextStatus = contextExists
   ? 'OWNER_CONTEXT.md loaded ✓'
-  : 'WARNING: memory/OWNER_CONTEXT.md not found — copy template and fill in';
+  : 'WARNING: OWNER_CONTEXT.md not found — copy OWNER_CONTEXT.template.md and fill in';
 
-console.error(`[AI-TEAM-CORE] 20 skills active | ${contextStatus}`);
+console.error(`[AI-TEAM-CORE] ${tools.length} tools active | ${contextStatus}`);
